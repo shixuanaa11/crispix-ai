@@ -11,14 +11,14 @@ import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 
 
 /**
- * ½â¾öÇ°¶Ë¾«¶È¶ªÊ§ÎÊÌâ
- * Spring MVC Json ÅäÖÃ
+ * è§£å†³å‰ç«¯ç²¾åº¦ä¸¢å¤±é—®é¢˜
+ * Spring MVC Json é…ç½®
  */
 @JsonComponent
 public class JacksonConfig {
 
     /**
-     * Ìí¼Ó Long ×ª json ¾«¶È¶ªÊ§µÄÅäÖÃ
+     * æ·»åŠ  Long è½¬ json ç²¾åº¦ä¸¢å¤±çš„é…ç½®
      */
     @Bean
     public ObjectMapper jacksonObjectMapper(Jackson2ObjectMapperBuilder builder) {

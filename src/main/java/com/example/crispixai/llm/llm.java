@@ -1,0 +1,132 @@
+package com.example.crispixai.llm;
+
+import com.example.crispixai.config.CrispixConfig;
+import io.agentscope.harness.agent.HarnessAgent;
+import io.agentscope.harness.agent.memory.compaction.CompactionConfig;
+import io.agentscope.core.model.ModelRegistry;
+import io.agentscope.core.model.OpenAIChatModel;
+import io.agentscope.core.model.AnthropicChatModel;
+import io.agentscope.core.formatter.openai.OpenAIChatFormatter;
+import io.agentscope.core.formatter.anthropic.AnthropicChatFormatter;
+import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import jakarta.annotation.PostConstruct;
+import java.nio.file.Paths;
+
+/**
+ * LLM 业务配置类
+ * 注册模型提供商并创建 HarnessAgent Bean
+ */
+@Slf4j
+@Configuration
+public class llm {
+
+    @Resource
+    private CrispixConfig config;
+
+    public llm(CrispixConfig config) {
+        this.config = config;
+    }
+
+    /**
+     * 应用启动时注册模型提供商到 ModelRegistry
+     */
+    @PostConstruct
+    public void registerModels() {
+        log.info("正在注册 AgentScope 模型提供商...");
+
+        // 注册 OpenAI 及兼容接口（DeepSeek、Kimi、vLLM 等）
+        registerOpenAI();
+
+        // 注册 Anthropic
+        registerAnthropic();
+
+        log.info("AgentScope 模型注册完成");
+    }
+
+    /**
+     * 注册 OpenAI 及兼容接口
+     */
+    private void registerOpenAI() {
+        String apiKey = config.getOpenaiApiKey();
+        String baseUrl = config.getOpenaiBaseUrl();
+
+        if (apiKey == null || apiKey.isEmpty()) {
+            log.warn("OpenAI API Key 未配置，跳过注册");
+            return;
+        }
+
+        ModelRegistry.registerFactory(
+            "openai:.*",
+            modelId -> {
+                String modelName = modelId.substring("openai:".length());
+                log.info("创建 OpenAI 模型: {}", modelName);
+                return OpenAIChatModel.builder()
+                    .apiKey(apiKey)
+                    .modelName(modelName)
+                    .baseUrl(baseUrl)
+                    .stream(true)
+                    .formatter(new OpenAIChatFormatter())
+                    .build();
+            }
+        );
+
+        log.info("OpenAI 模型提供商已注册，Base URL: {}", baseUrl);
+    }
+
+    /**
+     * 注册 Anthropic
+     */
+    private void registerAnthropic() {
+        String apiKey = config.getAnthropicApiKey();
+
+        if (apiKey == null || apiKey.isEmpty()) {
+            log.warn("Anthropic API Key 未配置，跳过注册");
+            return;
+        }
+
+        ModelRegistry.registerFactory(
+            "anthropic:.*",
+            modelId -> {
+                String modelName = modelId.substring("anthropic:".length());
+                log.info("创建 Anthropic 模型: {}", modelName);
+                return AnthropicChatModel.builder()
+                    .apiKey(apiKey)
+                    .modelName(modelName)
+                    .stream(true)
+                    .formatter(new AnthropicChatFormatter())
+                    .build();
+            }
+        );
+
+        log.info("Anthropic 模型提供商已注册");
+    }
+
+    /**
+     * 创建 HarnessAgent 单例 Bean
+     */
+    @Bean
+    public HarnessAgent harnessAgent() {
+        log.info("正在创建 HarnessAgent Bean...");
+
+        HarnessAgent agent = HarnessAgent.builder()
+            .name(config.getAgentName())
+            .model(config.getModel())
+            .workspace(Paths.get(config.getWorkspacePath()))
+            .compaction(CompactionConfig.builder()
+                .triggerMessages(30)
+                .keepMessages(10)
+                .build())
+            .build();
+
+        log.info("HarnessAgent 创建完成 - 名称: {}, 模型: {}, 工作区: {}",
+            config.getAgentName(),
+            config.getModel(),
+            config.getWorkspacePath());
+
+        return agent;
+    }
+}
