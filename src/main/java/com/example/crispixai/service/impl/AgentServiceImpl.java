@@ -9,7 +9,7 @@ import io.agentscope.core.event.ThinkingBlockDeltaEvent;
 import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.UserMessage;
 import io.agentscope.harness.agent.HarnessAgent;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -21,10 +21,10 @@ import reactor.core.publisher.Mono;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AgentServiceImpl implements AgentService {
 
-    private final HarnessAgent harnessAgent;
+    @Resource
+    private HarnessAgent harnessAgent;
 
     @Override
     public Mono<Msg> chat(String userId, String sessionId, String message) {
@@ -34,7 +34,6 @@ public class AgentServiceImpl implements AgentService {
                 .userId(userId)
                 .sessionId(sessionId)
                 .build();
-
         return harnessAgent.call(new UserMessage(message), context)
                 .doOnSuccess(msg -> log.info("同步对话完成 - userId: {}, sessionId: {}", userId, sessionId))
                 .doOnError(error -> log.error("同步对话失败 - userId: {}, sessionId: {}", userId, sessionId, error));
@@ -43,12 +42,12 @@ public class AgentServiceImpl implements AgentService {
     @Override
     public Flux<ChatEvent> chatStream(String userId, String sessionId, String message) {
         log.info("流式对话请求 - userId: {}, sessionId: {}, message: {}", userId, sessionId, message);
-
+        // 获取历史上下文
         RuntimeContext context = RuntimeContext.builder()
                 .userId(userId)
                 .sessionId(sessionId)
                 .build();
-
+        // 流式调用llm
         return harnessAgent.streamEvents(new UserMessage(message), context)
                 .map(event -> {
                     if (event.getType() == AgentEventType.TEXT_BLOCK_DELTA) {

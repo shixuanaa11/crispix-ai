@@ -29,4 +29,18 @@ public class CrispixConfig {
 
     @Value("${agentscope.anthropic.api-key:}")
     private String anthropicApiKey;
+
+    // ========== AgentScope Studio 配置 ==========
+
+    @Value("${agentscope.studio.enabled:false}")
+    private boolean studioEnabled;
+
+    @Value("${agentscope.studio.url:http://localhost:3000}")
+    private String studioUrl;
+
+    @Value("${agentscope.studio.project:crispix-ai}")
+    private String studioProject;
+
+    @Value("${agentscope.studio.run-name:crispix-run}")
+    private String studioRunName;
 }

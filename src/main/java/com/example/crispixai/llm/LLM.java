@@ -1,6 +1,10 @@
 package com.example.crispixai.llm;
 
 import com.example.crispixai.config.CrispixConfig;
+
+import com.example.crispixai.tool.ToolCollection;
+import io.agentscope.core.studio.StudioManager;
+import io.agentscope.core.studio.StudioMessageHook;
 import io.agentscope.harness.agent.HarnessAgent;
 import io.agentscope.harness.agent.memory.compaction.CompactionConfig;
 import io.agentscope.core.model.ModelRegistry;
@@ -8,7 +12,6 @@ import io.agentscope.core.model.OpenAIChatModel;
 import io.agentscope.core.model.AnthropicChatModel;
 import io.agentscope.core.formatter.openai.OpenAIChatFormatter;
 import io.agentscope.core.formatter.anthropic.AnthropicChatFormatter;
-import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,13 +25,16 @@ import java.nio.file.Paths;
  */
 @Slf4j
 @Configuration
-public class llm {
+public class LLM {
 
-    @Resource
-    private CrispixConfig config;
+    private final CrispixConfig config;
+    private final ToolCollection toolCollection;
 
-    public llm(CrispixConfig config) {
+
+
+    public LLM(CrispixConfig config, ToolCollection toolCollection) {
         this.config = config;
+        this.toolCollection = toolCollection;
     }
 
     /**
@@ -45,6 +51,25 @@ public class llm {
         registerAnthropic();
 
         log.info("AgentScope 模型注册完成");
+    }
+
+    /**
+     * 应用启动时初始化 Studio 连接（只执行一次）
+     */
+    @PostConstruct
+    public void initStudio() {
+        if (config.isStudioEnabled()) {
+            log.info("正在初始化 Studio 连接: {}", config.getStudioUrl());
+            StudioManager.init()
+                .studioUrl(config.getStudioUrl())
+                .project(config.getStudioProject())
+                .runName(config.getStudioRunName())
+                .initialize()
+                .block();
+            log.info("Studio 连接初始化完成");
+        } else {
+            log.info("Studio 未启用，跳过初始化");
+        }
     }
 
     /**
@@ -112,10 +137,15 @@ public class llm {
     public HarnessAgent harnessAgent() {
         log.info("正在创建 HarnessAgent Bean...");
 
+        // 构建harness（React模式智能体）
         HarnessAgent agent = HarnessAgent.builder()
             .name(config.getAgentName())
             .model(config.getModel())
             .workspace(Paths.get(config.getWorkspacePath()))
+            .toolkit(toolCollection.getToolkit())
+            .hook(config.isStudioEnabled()
+                ? new StudioMessageHook(StudioManager.getClient())
+                : null)
             .compaction(CompactionConfig.builder()
                 .triggerMessages(30)
                 .keepMessages(10)
