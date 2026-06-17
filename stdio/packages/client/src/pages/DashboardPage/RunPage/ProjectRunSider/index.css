@@ -1,0 +1,8 @@
+.animated-sider-content {
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 可选：优化表格列的过渡效果 */
+.animated-sider-content .ant-table-cell {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}

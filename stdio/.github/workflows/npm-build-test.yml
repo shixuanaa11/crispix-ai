@@ -1,0 +1,94 @@
+name: NPM Build Test (Dry Run)
+
+on: [push, pull_request]
+
+permissions:
+    contents: read
+
+concurrency:
+    group: npm-build-test-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    npm-build-test:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+                  registry-url: 'https://registry.npmjs.org'
+
+            - name: Get version from package.json
+              id: package_version
+              run: |
+                  PACKAGE_VERSION=$(node -p "require('./package.json').version")
+                  echo "version=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
+                  echo "📦 Package.json version: $PACKAGE_VERSION"
+
+            - name: Check if version exists on npm
+              id: npm_check
+              run: |
+                  PKG_NAME=$(node -p "require('./package.json').name")
+                  VERSION="${{ steps.package_version.outputs.version }}"
+                  if npm view "$PKG_NAME@$VERSION" version >/dev/null 2>&1; then
+                    echo ""
+                    echo "╔════════════════════════════════════════════════════════════╗"
+                    echo "║  ⚠️  VERSION ALREADY EXISTS ON NPM                          ║"
+                    echo "╠════════════════════════════════════════════════════════════╣"
+                    echo "║  Package: $PKG_NAME"
+                    echo "║  Version: $VERSION"
+                    echo "║  Status:  Already published on npm"
+                    echo "╚════════════════════════════════════════════════════════════╝"
+                    echo ""
+                    echo "::warning::⚠️ $PKG_NAME@$VERSION already exists on npm"
+                    echo "already_exists=true" >> $GITHUB_OUTPUT
+                  else
+                    echo "✅ $PKG_NAME@$VERSION not found on npm, ready to publish"
+                    echo "already_exists=false" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Build
+              run: npm run build
+
+            - name: Dry Run Publish
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+              run: npm publish --access public --dry-run
+
+            - name: Success
+              if: steps.npm_check.outputs.already_exists == 'false'
+              run: |
+                  PKG_NAME=$(node -p "require('./package.json').name")
+                  VERSION="${{ steps.package_version.outputs.version }}"
+                  echo ""
+                  echo "╔════════════════════════════════════════════════════════════╗"
+                  echo "║  ✅  DRY RUN SUCCESS                                        ║"
+                  echo "╠════════════════════════════════════════════════════════════╣"
+                  echo "║  Package: $PKG_NAME"
+                  echo "║  Version: $VERSION"
+                  echo "║  Status:  Ready to publish (new version)"
+                  echo "╚════════════════════════════════════════════════════════════╝"
+                  echo ""
+
+            - name: Skipped
+              if: steps.npm_check.outputs.already_exists == 'true'
+              run: |
+                  PKG_NAME=$(node -p "require('./package.json').name")
+                  VERSION="${{ steps.package_version.outputs.version }}"
+                  echo ""
+                  echo "╔════════════════════════════════════════════════════════════╗"
+                  echo "║  ⚠️  DRY RUN COMPLETE (VERSION EXISTS)                      ║"
+                  echo "╠════════════════════════════════════════════════════════════╣"
+                  echo "║  Package: $PKG_NAME"
+                  echo "║  Version: $VERSION"
+                  echo "║  Status:  Version already exists on npm"
+                  echo "╚════════════════════════════════════════════════════════════╝"
+                  echo ""
